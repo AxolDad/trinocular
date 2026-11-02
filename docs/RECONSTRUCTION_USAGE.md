@@ -6,6 +6,10 @@ foreground-masked point observations. The Pro2 raw-depth projection and metric
 scale adapter awaits physical calibration; camera stationary capture and
 manual settings remain separate firmware research.
 
+The [two-stage preview workflow](PREVIEW_WORKFLOW.md) adds a first-view setup
+check and coarse 3D coverage view. Full reconstruction requires a current
+accepted coverage review before dense processing begins.
+
 ## Install and run the synthetic demonstration
 
 Use Python 3.11 or 3.12 on an Open3D-supported system. CPU processing is enough
@@ -16,7 +20,11 @@ python -m venv .venv
 # Activate the environment using your platform's normal activation command.
 python -m pip install -r requirements-reconstruction.txt
 python examples/reconstruction_demo.py /tmp/trinocular-demo
-python -m trinocular.reconstruction reconstruct /tmp/trinocular-demo/manifest.json /tmp/trinocular-result
+python -m trinocular.reconstruction setup-preview /tmp/trinocular-demo/manifest.json /tmp/trinocular-setup
+python -m trinocular.reconstruction coverage-preview /tmp/trinocular-demo/manifest.json /tmp/trinocular-preview
+# Inspect both HTML views, then record your coverage review:
+python -m trinocular.reconstruction approve-preview /tmp/trinocular-preview --note "Inspected the generated test surface"
+python -m trinocular.reconstruction reconstruct /tmp/trinocular-demo/manifest.json /tmp/trinocular-result --review /tmp/trinocular-preview/review.json
 ```
 
 On Windows, replace the example `/tmp/...` paths with suitable local paths.
@@ -111,7 +119,7 @@ and an uncertainty study are needed for stronger performance conclusions.
 
 ```bash
 python -m pip install 'pytest>=8,<9'
-python -m pytest -q tests/test_reconstruction.py
+python -m pytest -q tests
 ```
 
 Tests cover color/HDR math, metric units, marker transforms, scale rejection,

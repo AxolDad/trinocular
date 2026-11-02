@@ -10,6 +10,7 @@ from scipy.spatial.transform import Rotation
 
 from trinocular.reconstruction import benchmark, color, geometry
 from trinocular.reconstruction.pipeline import observation, reconstruct, write_json
+from trinocular.reconstruction.preview import approve_preview, coverage_preview
 
 DEMO = Path(__file__).resolve().parents[1] / 'examples/reconstruction_demo.py'
 spec = importlib.util.spec_from_file_location('demo', DEMO)
@@ -100,7 +101,10 @@ def test_calibration_artifact_cannot_validate():
 def test_end_to_end_seeded_object_reconstruction(tmp_path):
     manifest = demo.generate(tmp_path / 'inputs')
     out = tmp_path / 'result'
-    report = reconstruct(manifest, out)
+    preview = tmp_path / 'preview'
+    coverage_preview(manifest, preview)
+    review = approve_preview(preview, 'Reviewed the generated test surface')
+    report = reconstruct(manifest, out, review)
     assert report['data_kind'] == 'synthetic'
     assert report['hardware_accuracy_verified'] is False
     assert report['mesh_triangles'] > 100

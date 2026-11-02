@@ -32,8 +32,10 @@ addition against a repeatable baseline.
 | Color foundation | Implemented explicit transfer functions, chart matrix, held-out CIEDE2000 reporting, linear HDR helper |
 | Exports | Linear NPZ master, observed point cloud, colored PLY mesh, millimetre STL, provenance/QA JSON |
 | Accuracy foundation | Independent ball-center lengths, sphere fit residuals, surface comparison, repeated-acquisition statistics |
+| First-view setup preview | Stored-image original-pixel detail check and calibrated foreground distance report |
+| Low-detail coverage preview | First exposure per angle, bounded coarse mesh, offline rotatable viewer, and review gate |
 | High-resolution image texture atlas | Design specified below; not implemented |
-| Integrated capture/coverage/measurement UI | Future integration with the existing app |
+| Integrated capture/coverage/measurement UI | Offline preview views implemented; capture-app integration remains future work |
 | Physical accuracy or professional color performance | Await independent real-camera benchmarks |
 
 The offline foundation accepts already calibrated point clouds. It does not
@@ -60,6 +62,12 @@ hardware, or unverified. A successful HTTP response alone does not establish
 that a setting changed. Test a known scene and inspect effective acquisition.
 
 ## Reconstruction architecture
+
+The [preview workflow](PREVIEW_WORKFLOW.md) places first-view setup inspection
+before collecting all angles, then coarse 3D coverage review before full
+processing. Review hashes bind inputs/settings and become stale after changes.
+The draft model supports coverage decisions; dimensional and final color
+evaluation occur during full reconstruction.
 
 ```mermaid
 flowchart TD

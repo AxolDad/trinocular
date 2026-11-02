@@ -86,10 +86,7 @@ def observation(root, item):
     return points, rgb, normals, seed, quality, digest(path)
 
 
-def reconstruct(manifest_path, output):
-    manifest_path, output = Path(manifest_path).resolve(), Path(output).resolve()
-    config = read_json(manifest_path)
-    root = manifest_path.parent
+def validate_metric_inputs(config):
     if config.get('schema_version') != 1 or config.get('data_kind') not in ('synthetic', 'hardware'):
         raise ValueError("Declare schema_version=1 and data_kind=synthetic or hardware")
     calibration = config['calibration']
@@ -97,8 +94,20 @@ def reconstruct(manifest_path, output):
         calibration.get('metric_scale_verified') is True and
         calibration.get('projection_verified') is True and calibration.get('evidence')):
         raise ValueError("Hardware inputs require verified metric scale, projection, and calibration evidence")
+
+
+def reconstruct(manifest_path, output, review_path=None):
+    manifest_path, output = Path(manifest_path).resolve(), Path(output).resolve()
+    config = read_json(manifest_path)
+    root = manifest_path.parent
+    validate_metric_inputs(config)
+    calibration = config['calibration']
     if output.exists():
         raise ValueError("Output already exists; select a new run directory")
+    # Coverage review is part of the requested capture workflow. Verification
+    # happens before loading dense observations or starting full reconstruction.
+    from .preview import validate_review, view_key
+    coverage_review, preview = validate_review(manifest_path, review_path)
     settings = config['reconstruction']
     voxel = float(settings['voxel_m'])
     fusion_voxel = float(settings.get('fusion_voxel_m', voxel / 2))
@@ -114,7 +123,10 @@ def reconstruct(manifest_path, output):
     loaded = [observation(root, item) for item in items]
     clouds = [geometry.prepare(p, n, voxel) for p, _, n, _, _, _ in loaded]
     o3d.utility.random.seed(int(settings.get('random_seed', 0)))
-    poses, registration = geometry.align(clouds, voxel, [x[3] for x in loaded],
+    reviewed_poses = {(p['angle_id'], p['sensor_id']): geometry.rigid_transform(p['pose'])
+                      for p in preview['pose_groups']}
+    seeds = [reviewed_poses.get(view_key(item), x[3]) for item, x in zip(items, loaded)]
+    poses, registration = geometry.align(clouds, voxel, seeds,
         min_overlap=float(settings.get('min_overlap', .35)),
         max_rmse_m=float(settings.get('max_registration_rmse_m', voxel)))
     transformed = [geometry.transform_points(x[0], pose) for x, pose in zip(loaded, poses)]
@@ -144,6 +156,7 @@ def reconstruct(manifest_path, output):
         'repeatability_group': config.get('repeatability_group'),
         'versions': {p: importlib.metadata.version(p) for p in ('open3d', 'numpy', 'scipy', 'colour-science')},
         'calibration': calibration, 'coordinate_frame': 'first observation sensor frame; metres',
+        'coverage_review': coverage_review,
         'settings': settings, 'observations': names, 'registration': registration,
         'poses_first_sensor_from_sensor': [p.tolist() for p in poses],
         'color_validation': {item['id']: obs[4] for item, obs in zip(items, loaded)},

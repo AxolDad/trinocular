@@ -2,13 +2,17 @@
 
 Run from the repository root:
   python examples/reconstruction_demo.py /tmp/trinocular-demo
-  python -m trinocular.reconstruction reconstruct /tmp/trinocular-demo/manifest.json /tmp/trinocular-result
+  python -m trinocular.reconstruction coverage-preview /tmp/trinocular-demo/manifest.json /tmp/trinocular-preview
+  # Inspect /tmp/trinocular-preview/index.html, then record your review:
+  python -m trinocular.reconstruction approve-preview /tmp/trinocular-preview --note "Reviewed synthetic test geometry"
+  python -m trinocular.reconstruction reconstruct /tmp/trinocular-demo/manifest.json /tmp/trinocular-result --review /tmp/trinocular-preview/review.json
 """
 import json
 from pathlib import Path
 import sys
 
 import numpy as np
+from PIL import Image
 from scipy.spatial.transform import Rotation
 
 
@@ -53,6 +57,7 @@ def generate(destination, seed=17):
         if i:
             guess[:3, 3] += [.0004, -.0003, .0002]
         observations.append({'id': f'orientation-{i}', 'path': f'pass-{i}.npz',
+                             'angle_id': f'angle-{i}', 'sensor_id': 'primary', 'frame_index': 0,
                              'units': 'm', 'color_encoding': 'camera_linear',
                              'color_profile': 'profile.json', 'object_from_sensor': guess.tolist()})
     manifest = {'schema_version': 1, 'data_kind': 'synthetic',
@@ -63,6 +68,10 @@ def generate(destination, seed=17):
         'reconstruction': {'voxel_m': .002, 'fusion_voxel_m': .0008,
                            'min_overlap': .3, 'max_registration_rmse_m': .0015, 'random_seed': seed},
         'observations': observations,
+        'preview': {'voxel_m': .004, 'max_points_per_angle': 2500, 'max_points_total': 10000},
+        'preflight': {'image': 'setup-image.png', 'observation_id': 'orientation-0',
+                      'subject_roi_pixels': [64, 64, 320, 256],
+                      'working_distance_m': [.5, .9]},
         'benchmark': {'artifact_id': 'synthetic-independent-three-ball-fixture',
             'spheres': [{'id': f'ball-{i}', 'roi_center_m': c.tolist(), 'roi_radius_m': r + .004}
                         for i, (c, r) in enumerate(zip(centers, radii))],
@@ -71,6 +80,11 @@ def generate(destination, seed=17):
                            'tolerance_mm': .15, 'reference_expanded_uncertainty_mm': 0}
                           for i in (1, 2)]}}
     (root / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    # A generated image-detail target, explicitly not a camera photograph.
+    yy, xx = np.indices((320, 384))
+    target = np.where(((xx // 12 + yy // 12) % 2)[..., None],
+                      np.array([210, 170, 240]), np.array([35, 45, 65])).astype(np.uint8)
+    Image.fromarray(target).save(root / 'setup-image.png')
     return root / 'manifest.json'
 
 

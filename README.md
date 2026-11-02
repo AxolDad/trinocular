@@ -146,6 +146,10 @@ synthetic demonstration. Native Pro2 projection/scale calibration, stationary
 capture controls, high-resolution image texturing, and physical validation are
 still required. The existing capture viewer is unchanged.
 
+The [setup and coverage previews](docs/PREVIEW_WORKFLOW.md) provide a first-view
+image/distance check and offline rotatable coarse model from one exposure per
+angle. Full offline reconstruction requires an accepted, current coverage review.
+
 Depth + known sensor poses → a point cloud per sweep; project it into the color
 frames using the calibration blocks in the protobuf; align sweeps with ICP;
 mesh or splat; view it in three.js.  In other words, the digital twin the
