@@ -1,0 +1,5 @@
+# Offline reconstruction extras; the existing capture app remains independent.
+numpy>=2,<3
+scipy>=1.13,<2
+open3d==0.19.0
+colour-science==0.4.6
