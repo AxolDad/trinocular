@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Coverage preview</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui,sans-serif;color:#eeeaf6;background:#101119}
+*{box-sizing:border-box}body{margin:0}main{max-width:1500px;margin:auto;padding:28px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
+h1{font-size:28px;margin:0 0 8px}p{line-height:1.5;color:#bcb8cb;margin:8px 0}
+.badge{border:1px solid #74608b;border-radius:20px;padding:7px 12px;font-size:13px;white-space:nowrap}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px}
+.stage,aside{border:1px solid #343141;border-radius:14px;background:#171822;overflow:hidden}
+canvas{display:block;width:100%;height:600px;touch-action:none;cursor:grab}canvas:active{cursor:grabbing}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;padding:14px;border-top:1px solid #343141;align-items:center}
+button,select,textarea{font:inherit;color:inherit;background:#262335;border:1px solid #51465f;border-radius:8px;padding:9px 12px}
+button{cursor:pointer}button:hover{border-color:#bb98ef}button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #bd97ff;outline-offset:3px}
+aside{padding:20px}h2{font-size:17px;margin:4px 0 12px}.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+.stat{background:#22212e;padding:12px;border-radius:9px}.stat strong{display:block;font-size:26px;font-weight:600}
+.stat span{color:#bcb8cb;font-size:13px}.legend p{font-size:14px;margin:12px 0}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:9px}
+.review{border-top:1px solid #343141;margin-top:24px;padding-top:20px}textarea{width:100%;min-height:90px;resize:vertical;margin:10px 0}
+.accept{width:100%;background:#8958cb;border-color:#af80ec;font-weight:600}label{font-size:14px}.hint{font-size:13px}
+#status{color:#e0caff;font-size:14px;min-height:2em}input[type=range]{max-width:100px;accent-color:#bd97ff}
+@media(max-width:850px){main{padding:16px}.layout{grid-template-columns:1fr}canvas{height:420px}aside{padding:18px}header{align-items:flex-start}}
+</style>
+<main>
+<header><div><h1>Coverage preview</h1><p>Rotate the object and inspect every side before full reconstruction.</p></div><span class="badge" id="badge">Draft surface</span></header>
+<div class="layout">
+<section class="stage" aria-label="Interactive three-dimensional coverage view">
+<canvas id="view" aria-label="Object preview. Drag to rotate; use view buttons for each side."></canvas>
+<div class="toolbar">
+<button data-pose="front">Front</button><button data-pose="back">Back</button>
+<button data-pose="left">Left</button><button data-pose="right">Right</button>
+<button data-pose="top">Top</button><button data-pose="bottom">Bottom</button>
+<label>Display <select id="mode"><option value="coverage">Coverage</option><option value="color">Color</option></select></label>
+<label><input type="checkbox" id="edges" checked> Open edges</label>
+<label>Zoom <input id="zoom" type="range" min="0.5" max="2.5" step="0.05" value="1"></label>
+</div>
+</section>
+<aside>
+<h2>Capture overview</h2><div class="stats"><div class="stat"><strong id="angles"></strong><span>angles</span></div><div class="stat"><strong id="selected"></strong><span>selected frames</span></div></div>
+<div class="legend"><p><span class="dot" style="background:#66b8e8"></span>Seen from multiple angles</p>
+<p><span class="dot" style="background:#eab159"></span>Seen from one angle</p>
+<p><span class="dot" style="background:#f67f96"></span>Open surface edges</p></div>
+<p class="hint">Check the underside, supports, thin edges, and transitions between views. Add another angle wherever detail is missing.</p>
+<div class="review"><h2>Review coverage</h2><label for="note">Review note</label>
+<textarea id="note" placeholder="Record the surfaces you checked."></textarea>
+<button class="accept" id="accept">Accept coverage</button>
+<p class="hint">Save the review record alongside this preview to continue with full reconstruction.</p>
+<p id="status" role="status"></p></div>
+</aside></div></main>
+<script id="preview-data" type="application/json">__PREVIEW_DATA__</script>
+<script>
+'use strict';
+const data=JSON.parse(document.getElementById('preview-data').textContent), model=data.model;
+const canvas=document.getElementById('view'), ctx=canvas.getContext('2d');
+const min=[0,1,2].map(k=>Math.min(...model.vertices.map(v=>v[k])));
+const max=[0,1,2].map(k=>Math.max(...model.vertices.map(v=>v[k])));
+const center=min.map((v,k)=>(v+max[k])/2), extent=Math.max(...max.map((v,k)=>v-min[k]));
+const vertices=model.vertices.map(v=>v.map((x,k)=>(x-center[k])/extent));
+let yaw=0,pitch=0,zoom=1,drag=null,pending=false;
+document.getElementById('angles').textContent=data.report.angle_count;
+document.getElementById('selected').textContent=data.report.selected_observations.length;
+if(data.report.data_kind==='synthetic')document.getElementById('badge').textContent='Generated test object';
+function draw(){
+ pending=false;const box=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);
+ canvas.width=box.width*dpr;canvas.height=box.height*dpr;ctx.scale(dpr,dpr);
+ const w=box.width,h=box.height,s=Math.min(w,h)*.76*zoom;
+ ctx.fillStyle='#171822';ctx.fillRect(0,0,w,h);
+ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+ const projected=vertices.map(([x,y,z])=>{const a=x*cy+z*sy,b=-x*sy+z*cy;return[w/2+a*s,h/2+(y*cp-b*sp)*s,y*sp+b*cp]});
+ const faces=model.triangles.map(t=>({t,z:t.reduce((n,i)=>n+projected[i][2],0)/3})).sort((a,b)=>b.z-a.z);
+ const coverage=document.getElementById('mode').value==='coverage';
+ for(const {t} of faces){
+  let rgb;if(coverage){rgb=t.reduce((n,i)=>n+model.support[i],0)/3>=1.8?[102,184,232]:[234,177,89]}
+  else{rgb=[0,1,2].map(k=>Math.round(t.reduce((n,i)=>n+model.colors[i][k],0)/3))}
+  const a=projected[t[0]],b=projected[t[1]],c=projected[t[2]];
+  const u=[b[0]-a[0],b[1]-a[1],(b[2]-a[2])*s],v=[c[0]-a[0],c[1]-a[1],(c[2]-a[2])*s];
+  const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+  const shade=.6+.4*Math.abs(n[2])/Math.max(Math.hypot(...n),1e-12);rgb=rgb.map(x=>Math.round(x*shade));
+  ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.lineTo(c[0],c[1]);ctx.closePath();
+  ctx.fillStyle=`rgb(${rgb.join(',')})`;ctx.fill();
+ }
+ if(document.getElementById('edges').checked){ctx.strokeStyle='#f67f96';ctx.lineWidth=1;ctx.beginPath();
+  for(const [i,j] of model.boundaries){ctx.moveTo(projected[i][0],projected[i][1]);ctx.lineTo(projected[j][0],projected[j][1])}ctx.stroke()}
+}
+function schedule(){if(!pending){pending=true;requestAnimationFrame(draw)}}
+canvas.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY,yaw,pitch];canvas.setPointerCapture(e.pointerId)});
+canvas.addEventListener('pointermove',e=>{if(drag){yaw=drag[2]+(e.clientX-drag[0])*.009;pitch=drag[3]-(e.clientY-drag[1])*.009;schedule()}});
+function stop(){drag=null}canvas.addEventListener('pointerup',stop);canvas.addEventListener('pointercancel',stop);
+const poses={front:[0,0],back:[Math.PI,0],left:[-Math.PI/2,0],right:[Math.PI/2,0],top:[0,Math.PI/2],bottom:[0,-Math.PI/2]};
+for(const b of document.querySelectorAll('[data-pose]'))b.addEventListener('click',()=>{[yaw,pitch]=poses[b.dataset.pose];schedule()});
+for(const id of ['mode','edges'])document.getElementById(id).addEventListener('change',schedule);
+document.getElementById('zoom').addEventListener('input',e=>{zoom=Number(e.target.value);schedule()});
+document.getElementById('accept').addEventListener('click',()=>{
+ const note=document.getElementById('note').value.trim(),status=document.getElementById('status');
+ if(!note){status.textContent='Add a brief review note before accepting.';return}
+ const review={schema_version:1,decision:'approved',coverage_accepted_by_operator:true,created_utc:new Date().toISOString(),
+  note,dataset_fingerprint:data.report.dataset_fingerprint,preview_report_path:'preview.json',preview_report_sha256:data.preview_report_sha256};
+ const link=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(review,null,2)+'\n'],{type:'application/json'}));
+ link.href=url;link.download='review.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ status.textContent='Review record downloaded. Keep it with this preview.';
+});
+addEventListener('resize',schedule);schedule();
+</script>
+</html>

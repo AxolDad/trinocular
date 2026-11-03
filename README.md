@@ -41,7 +41,8 @@ Still open:
 - **Depth units.**  0.25 mm/count fits (Matterport3D's convention) but hasn't
   met a tape measure.
 - **Depth ↔ color alignment.**  About 50° apart in azimuth; the exact offset
-  should be in the calibration blocks.  No stitching or registration yet.
+  should be in the calibration blocks. Native Pro2 reconstruction requires
+  this calibration before the offline registration pipeline can consume it.
 - **Exposure metadata.**  The per-frame exposure/gain values don't track frame
   brightness the way you'd expect.
 
@@ -137,10 +138,23 @@ parser.
 
 ## Where this could go
 
+The object-scanner branch adds an [offline reconstruction foundation](docs/RECONSTRUCTION_USAGE.md)
+and a [full-system specification](docs/OBJECT_SCANNER_SYSTEM.md): foreground-masked
+point-cloud registration, metric fusion/meshing, chart-calibrated point colors,
+and dimensional/repeatability benchmarks. It runs on calibrated inputs and a
+synthetic demonstration. Native Pro2 projection/scale calibration, stationary
+capture controls, high-resolution image texturing, and physical validation are
+still required. The existing capture viewer is unchanged.
+
+The [setup and coverage previews](docs/PREVIEW_WORKFLOW.md) provide a first-view
+image/distance check and offline rotatable coarse model from one exposure per
+angle. Full offline reconstruction requires an accepted, current coverage review.
+
 Depth + known sensor poses → a point cloud per sweep; project it into the color
 frames using the calibration blocks in the protobuf; align sweeps with ICP;
 mesh or splat; view it in three.js.  In other words, the digital twin the
-camera was built for, done on your own hardware.  None of that exists here yet.
+camera was built for, done on your own hardware. The native Pro2 reconstruction
+path still needs the calibration work described above.
 
 ## Notes
 
